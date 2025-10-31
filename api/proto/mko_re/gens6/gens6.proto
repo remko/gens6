@@ -1,0 +1,22 @@
+edition = "2023";
+
+package mko_re.gens6.v1;
+
+option go_package = "mko.re/gens6/api/gens6pb";
+
+message Config { repeated Service services = 1; }
+
+message Service {
+  string name = 1;
+  repeated string dependencies = 2;
+  ReadyConfig ready = 3;
+  string run = 4;
+  string finish = 5;
+  bool down = 6;
+}
+
+message ReadyConfig {
+  oneof method { FileDescriptorReadyConfig fd = 1; }
+}
+
+message FileDescriptorReadyConfig { string env = 1; }

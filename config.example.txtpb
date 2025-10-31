@@ -1,0 +1,95 @@
+services {
+  name: "syncthing"
+  run: "syncthing --no-browser"
+  down: true
+}
+
+services {
+  name: "pipewire"
+  ready: {
+    fd: {
+      env: "PIPEWIRE_NOTIFICATION_FD"
+    }
+  }
+  run: "/usr/bin/pipewire"
+}
+
+services {
+  name: "pipewire-pulse"
+  dependencies: ["pipewire"]
+  run: "/usr/bin/pipewire-pulse"
+}
+
+services {
+  name: "wireplumber"
+  dependencies: ["pipewire"]
+  run: "/usr/bin/wireplumber"
+}
+
+services {
+  name: "sway"
+  ready: {
+    fd: {}
+  }
+  run: 
+    "importas HOME HOME\n"
+    "cd ${HOME}\n"
+    "sway\n"
+  finish: "s6-permafailon 60 3 1-255"
+}
+
+services {
+  name: "wlsunset"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "wlsunset -l 50.881531 -L 4.841330\n"
+}
+
+services {
+  name: "wl-paste"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "wl-paste -t text --watch clipman store --no-persist\n"
+}
+
+services {
+  name: "wl-paste-primary"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "wl-paste -p -t text --watch clipman store --no-persist"
+}
+
+services {
+  name: "iwgtk"
+  down: true
+  # available: "redirfd -w 1 /dev/null which iwgtk"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "iwgtk -i\n"
+}
+
+services {
+  name: "swayidle"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "swayidle -w\n"
+    "  timeout 300 \"swaylock -f -c 000000\"\n"
+    "  timeout 310 \"swaymsg -q \\\"output * power off\\\"\"\n"
+    "    resume \"swaymsg -q \\\"output * power on\\\"\"\n"
+    "  before-sleep \"swaylock -f -c 000000\"\n"
+    "  lock \"swaylock -f -c 000000\"\n"
+}
+
+services {
+  name: "shutdown"
+  dependencies: ["sway"]
+  run: 
+    "#!/bin/sh\n"
+    "swaymsg -t subscribe \"[\\\"shutdown\\\"]\"\n"
+    "s6-svscanctl -t ../_scan\n"
+}
