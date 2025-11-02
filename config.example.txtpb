@@ -1,43 +1,37 @@
+# Simple service
 services {
   name: "syncthing"
   run: "syncthing --no-browser"
-  down: true
 }
 
+# Service with upstream dependencies
 services {
   name: "pipewire"
-  ready: {
-    fd: {
-      env: "PIPEWIRE_NOTIFICATION_FD"
-    }
-  }
+  # Set an environment variable to a file descriptor that PipeWire can 
+  # use to signal when it's ready.
+  ready: { fd: { env: "PIPEWIRE_NOTIFICATION_FD" } }
   run: "/usr/bin/pipewire"
 }
 
+# Service depending on another service
 services {
   name: "pipewire-pulse"
+  # Wait for pipewire to signal it's ready
   dependencies: ["pipewire"]
   run: "/usr/bin/pipewire-pulse"
 }
 
-services {
-  name: "wireplumber"
-  dependencies: ["pipewire"]
-  run: "/usr/bin/wireplumber"
-}
-
+# A custom Sway config writes the value of WAYLAND_DISPLAY and SWAYSOCK to 
+# files in the _env dir, and then notifies it's ready via SWAY_NOTIFICATION_FD.
+# Upstream services can then pick up the environment variables from the _env dir.
 services {
   name: "sway"
-  ready: {
-    fd: {}
-  }
-  run: 
-    "importas HOME HOME\n"
-    "cd ${HOME}\n"
-    "sway\n"
-  finish: "s6-permafailon 60 3 1-255"
+  ready: { fd: { env: "SWAY_NOTIFICATION_FD" } }
+  run: "sway"
 }
 
+# Wait for Sway, and then import the necessary environment variables to be able
+# to connect to sway
 services {
   name: "wlsunset"
   dependencies: ["sway"]
@@ -46,50 +40,14 @@ services {
     "wlsunset -l 50.881531 -L 4.841330\n"
 }
 
-services {
-  name: "wl-paste"
-  dependencies: ["sway"]
-  run: 
-    "s6-envdir ../_env\n"
-    "wl-paste -t text --watch clipman store --no-persist\n"
-}
-
-services {
-  name: "wl-paste-primary"
-  dependencies: ["sway"]
-  run: 
-    "s6-envdir ../_env\n"
-    "wl-paste -p -t text --watch clipman store --no-persist"
-}
-
+# Example of a custom finish script, called at service exit.
 services {
   name: "iwgtk"
-  down: true
-  # available: "redirfd -w 1 /dev/null which iwgtk"
   dependencies: ["sway"]
   run: 
     "s6-envdir ../_env\n"
     "iwgtk -i\n"
-}
-
-services {
-  name: "swayidle"
-  dependencies: ["sway"]
-  run: 
-    "s6-envdir ../_env\n"
-    "swayidle -w\n"
-    "  timeout 300 \"swaylock -f -c 000000\"\n"
-    "  timeout 310 \"swaymsg -q \\\"output * power off\\\"\"\n"
-    "    resume \"swaymsg -q \\\"output * power on\\\"\"\n"
-    "  before-sleep \"swaylock -f -c 000000\"\n"
-    "  lock \"swaylock -f -c 000000\"\n"
-}
-
-services {
-  name: "shutdown"
-  dependencies: ["sway"]
-  run: 
-    "#!/bin/sh\n"
-    "swaymsg -t subscribe \"[\\\"shutdown\\\"]\"\n"
-    "s6-svscanctl -t ../_scan\n"
+  # iwgtk isn't always installed. If it fails because it wasn't found (exit code 127), 
+  # make it a permanent failure and don't try to restart.
+  finish: "s6-permafailon 5 1 127"
 }
