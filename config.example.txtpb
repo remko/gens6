@@ -51,3 +51,13 @@ services {
   # make it a permanent failure and don't try to restart.
   finish: "s6-permafailon 5 1 127"
 }
+
+# Example of a service that starts down
+services {
+  name: "wayvnc"
+  dependencies: ["sway"]
+  run: 
+    "s6-envdir ../_env\n"
+    "wayvnc\n"
+  down: true
+}
