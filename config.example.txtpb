@@ -56,6 +56,7 @@ services {
 services {
   name: "wayvnc"
   dependencies: ["sway"]
+  ready: { tcp: { port: 5900 } }
   run: 
     "s6-envdir ../_env\n"
     "wayvnc\n"

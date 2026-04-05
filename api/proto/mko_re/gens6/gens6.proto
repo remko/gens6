@@ -16,7 +16,12 @@ message Service {
 }
 
 message ReadyConfig {
-  oneof method { FileDescriptorReadyConfig fd = 1; }
+  oneof method { 
+    FileDescriptorReadyConfig fd = 1; 
+    TCPReadyConfig tcp = 2;
+  }
 }
 
 message FileDescriptorReadyConfig { string env = 1; }
+
+message TCPReadyConfig { int32 port = 1; }

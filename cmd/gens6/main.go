@@ -82,10 +82,12 @@ func run() error {
 			sb.WriteString(fmt.Sprintf("foreground { echo \"↗ waiting for %s…\" }\n", dep))
 			sb.WriteString(fmt.Sprintf("foreground { s6-svwait -U ../%s }\n", dep))
 		}
+		sb.WriteString("foreground { echo \"↗ starting…\" }\n")
 		if service.GetReady().GetFd().GetEnv() != "" {
 			sb.WriteString(fmt.Sprintf("export %s 3\n", service.GetReady().GetFd().GetEnv()))
+		} else if service.GetReady().GetTcp().GetPort() > 0 {
+			sb.WriteString(fmt.Sprintf("s6-notifyoncheck -n 0 -c \"foreground { echo \\\"▸ checking port %[1]d…\\\" } fdmove -c 2 1 redirfd -w 2 /dev/null nc -z -w 1 127.0.0.1 %[1]d\"\n", service.GetReady().GetTcp().GetPort()))
 		}
-		sb.WriteString("foreground { echo \"↗ starting…\" }\n")
 		sb.WriteString(script(service.GetRun()))
 		if err := os.WriteFile(runFile, []byte(sb.String()), 0755); err != nil {
 			return errors.WithStack(err)
@@ -128,7 +130,7 @@ s6-log T n1 ./log T p"%s[%s]%s" 1
 		////////////////////////////////////////////////////////////////////////////////
 
 		notificationFDFile := filepath.Join(serviceDir, "notification-fd")
-		if service.GetReady().GetFd() != nil {
+		if service.HasReady() {
 			if err := os.WriteFile(notificationFDFile, []byte("3"), 0600); err != nil {
 				return errors.WithStack(err)
 			}

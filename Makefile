@@ -30,7 +30,7 @@ gen: gen-proto
 .PHONY: gen-proto
 gen-proto: $(API_FILES) 
 
-$(API_GO_DIR)/%.pb.go $(API_GO_DIR)/%.twirp.go: api/proto/mko_re/$(API_NAME)/%.proto
+$(API_GO_DIR)/%.pb.go: api/proto/mko_re/$(API_NAME)/%.proto
 	$(PROTOC) $(PROTOC_FLAGS) $<
 
 .PHONY: lint
