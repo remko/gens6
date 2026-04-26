@@ -33,6 +33,7 @@ var colors = []string{
 func run() error {
 	outputDir := flag.String("output", "", "output directory")
 	configFile := flag.String("config", "", "config file")
+	rootDir := flag.String("root", "", "root directory to set as ROOT variable in generated scripts")
 	flag.Parse()
 
 	if *outputDir == "" {
@@ -78,15 +79,24 @@ func run() error {
 		var sb strings.Builder
 		sb.WriteString("#!/usr/bin/env execlineb\n\n")
 		sb.WriteString("fdmove -c 2 1\n")
+		if *rootDir != "" {
+			fmt.Fprintf(&sb, "define ROOT %s\n", *rootDir)
+		}
+		sb.WriteString("getcwd -E PWD\n")
+		sb.WriteString("define SVCS_DIR ${PWD}/..\n")
+		sb.WriteString("export SVCS_DIR ${SVCS_DIR}\n")
 		for _, dep := range service.GetDependencies() {
-			sb.WriteString(fmt.Sprintf("foreground { echo \"↗ waiting for %s…\" }\n", dep))
-			sb.WriteString(fmt.Sprintf("foreground { s6-svwait -U ../%s }\n", dep))
+			fmt.Fprintf(&sb, "foreground { echo \"↗ waiting for %s…\" }\n", dep)
+			fmt.Fprintf(&sb, "foreground { s6-svwait -U ${SVCS_DIR}/%s }\n", dep)
 		}
 		sb.WriteString("foreground { echo \"↗ starting…\" }\n")
 		if service.GetReady().GetFd().GetEnv() != "" {
-			sb.WriteString(fmt.Sprintf("export %s 3\n", service.GetReady().GetFd().GetEnv()))
+			fmt.Fprintf(&sb, "export %s 3\n", service.GetReady().GetFd().GetEnv())
 		} else if service.GetReady().GetTcp().GetPort() > 0 {
-			sb.WriteString(fmt.Sprintf("s6-notifyoncheck -n 0 -c \"foreground { echo \\\"▸ checking port %[1]d…\\\" } fdmove -c 2 1 redirfd -w 2 /dev/null nc -z -w 1 127.0.0.1 %[1]d\"\n", service.GetReady().GetTcp().GetPort()))
+			fmt.Fprintf(&sb, "s6-notifyoncheck -n 0 -c \"foreground { echo \\\"▸ checking port %[1]d…\\\" } fdmove -c 2 1 redirfd -w 2 /dev/null nc -z -w 1 127.0.0.1 %[1]d\"\n", service.GetReady().GetTcp().GetPort())
+		}
+		if *rootDir != "" {
+			sb.WriteString("cd ${ROOT}\n")
 		}
 		sb.WriteString(script(service.GetRun()))
 		if err := os.WriteFile(runFile, []byte(sb.String()), 0755); err != nil {
@@ -119,6 +129,9 @@ s6-log T n1 ./log T p"%s[%s]%s" 1
 		finishFile := filepath.Join(serviceDir, "finish")
 		sb = strings.Builder{}
 		sb.WriteString("#!/usr/bin/env execlineb\n\n")
+		if *rootDir != "" {
+			fmt.Fprintf(&sb, "define ROOT %s\n", *rootDir)
+		}
 		sb.WriteString("foreground { echo \"↘ stopped\" }\n")
 		sb.WriteString(script(service.GetFinish()))
 		if err := os.WriteFile(finishFile, []byte(sb.String()), 0755); err != nil {
